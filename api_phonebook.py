@@ -2,6 +2,8 @@ import json
 import os
 from dataclasses import dataclass
 
+path_data = os.path.join(os.path.dirname(__file__), 'data_phonebook.json')
+
 @dataclass
 class User:
     
@@ -10,8 +12,7 @@ class User:
     phone: str
     city: str
     
-    def transform_as_dict(self) -> dict:     
-        
+    def transform_as_dict(self) -> dict:            
         return{
             "user": {                
                 'name': self.name,
@@ -23,80 +24,70 @@ class User:
     
 
 
-class Data:
+class DataDecorators:
+    @staticmethod 
+    def load_data(func):
+        def wrap(self, *args, **kwargs):
+            with open(path_data, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return func(self, data, *args, **kwargs)
+        return wrap
     
-    def __init__(self):
-        self.path_data = os.path.join(os.path.dirname(__file__), 'data_phonebook.json')
-
-    def load_data(self) -> list:
-        with open(self.path_data, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    
-   
-    def save_data(self, data: list) -> None:
-        with open(self.path_data, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
-            
+    @staticmethod 
+    def save_data(func):
+        def wrap(self, data, *args, **kwargs):
+            result = func(self, data, *args, **kwargs)
+            with open(path_data, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4)
+            return result
+        return wrap
+        
     def add_user_data(self, user):
-        data = self.load_data()
+        with open(path_data, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         data.append(user)
-        self.save_data(data)
+        with open(path_data, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
         return user
 
 
-class Phonebook(Data): 
-
-           
-    def create_entry(self, user: User) -> User:     
+class Phonebook(DataDecorators): 
+            
+    def create(self, user: User) -> User:     
         user_data = user.transform_as_dict()        
         self.add_user_data(user_data)
         return user
 
-            
-    def update_entry(self, user: User, user_phone):
-        data = self.load_data()
-
+    @DataDecorators.load_data
+    @DataDecorators.save_data
+    def update(self, data, user: User, user_phone):
         for item in data:
             if item.get('user', {}).get('phone') == user_phone:
                 item['user']['name'] = user.name
                 item['user']['surname'] = user.surname
                 item['user']['phone'] = user.phone
-                item['user']['city'] = user.city
-
-                self.save_data(data)
+                item['user']['city'] = user.city             
                 return True
-
         return False        
 
-                
-    def delete_entry(self, user_phone):
-        data = self.load_data()
-
+    @DataDecorators.load_data
+    @DataDecorators.save_data            
+    def delete(self, data, user_phone):
         for i, item in enumerate(data):
             if item.get('user', {}).get('phone') == user_phone:
                 del data[i]
                 break
         else:
-            return False
-
-        self.save_data(data)
-            
+            return False           
         return True
 
-
-    def read_entry(self, user_input):
-        data = self.load_data()
-
-        fields = ['name', 'surname', 'city', 'phone']
-        
+    @DataDecorators.load_data
+    def read(self, data, user_input):
+        fields = ['name', 'surname', 'city', 'phone']       
         for item in data:
-            user = item.get('user', {})
-            
+            user = item.get('user', {})         
             for field in fields:
                 if user.get(field) == user_input:
                     print (f"You find the {field}: {user.get(field)}")
                     return True
         return False
-                    
-            
-    
